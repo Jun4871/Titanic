@@ -1,5 +1,5 @@
 ---
-title: "Titanic 생존 분석(doing)"
+title: "Titanic 생존 분석"
 author: "Jun"
 date: "`r Sys.Date()`"
 output: 
@@ -34,6 +34,8 @@ library(randomForest) # Random Forest 패키지
 training_set <-read.csv("train.csv")
 test_set <- read.csv("test.csv")
 ```
+
+<br><br>
 
 ## 1. 타이타닉 생존예측을 하기위한 도메인 지식
 
@@ -107,8 +109,6 @@ sapply(test_set, function(x){
 ```
 
 
-
-
 <br>
 
 ### 2) 데이터 요약정보 파악
@@ -156,7 +156,11 @@ sum(is.na(training_set))
 
 결측치가 제거되었음을 확인할 수 있다. 
 
+<br>
+
 ### 4) 나이 데이터 전처리
+
+<br>
 
 나이 데이터를 factor 형식으로 10살 단위로 끊어 정제해보자. 60살이 넘으면 over60 이라는 펙터로 구분을 지어놨다. 그리고 시각화를 해서 보면, 어느정도 정규성을 띄는 것을 볼 수 있다. 
 
@@ -193,6 +197,8 @@ ggplot(training_set, aes(x = Ages)) +
 
 ### 1) 성별에 따른 생존여부
 
+<br>
+
 성별에 따른 생존여부를 시각화해보자. 왼쪽 막대 그래프가 사망자의 남녀분포이고, 오른쪽의 막대 그래프가 생존자의 막대 그래프이다. 그림만 봐도 알 수 있듯이, 사망자 중에서는 남자가 월등히 많은 것을 볼 수 있었다. 
 
 ```{r}
@@ -208,6 +214,8 @@ ggplotly(ggplot_data, height = 500, width = 800)
 
 ### 2) Pclass에 따른 생존여부
 
+<br>
+
 Pclass에 따른 생존여부에서 사망자의 수는 Pclass등급에 따라 어느정도 차이를 보이고 있으나, 왼쪽 생존자 막대 그래프에서는 등급에 따른 큰 차이를 보이지 않고 있다. 
 
 ```{r}
@@ -220,6 +228,7 @@ ggplotly(ggplot_data, height = 500, width = 800)
 ```
 
 <br>
+
 ### 3) 나이에 따른 생존여부 
 
 <br>
@@ -237,6 +246,7 @@ ggplot_data <- training_set %>%
 ggplotly(ggplot_data, height = 500, width = 800)
 ```
 
+<br>
 
 ### 4) SibSp에 따른 생존여부
 
@@ -255,6 +265,7 @@ ggplotly(ggplot_data, height = 500, width = 800)
 ```
 
 
+<br>
 
 ### 5) Parch 에 따른 생존여부 
 
@@ -277,6 +288,8 @@ ggplotly(ggplot_data, height = 500, width = 800)
  
 ## 4. 모델생성
 
+<br>
+
 데이터에 대한 파악, 자료형 변환을 마쳤고, 시각화까지 모두 해서 확인해보았다. 이제 트레이닝 셋으로 모델을 만들어서 테스트 셋을 예측해보자. 종속변수는 Survived와 독립변수는 Sex와 Pclass, age로 하겠다. 그 전에 Survived 의 자료형을 factor로 바꿔주자. 
 
 ```{r}
@@ -284,7 +297,11 @@ training_set$Survived <- as.factor(training_set$Survived)
 str(training_set)
 ```
 
+<br>
+
 ### 1) Decision tree
+
+<br>
 
 Decision tree란, 나무가지치듯 2진분류를 사용하여 데이터를 분류하는 기법이다. 자세한 설명은 다음 기술 블로그를 참조하자. <br>
 
@@ -293,6 +310,8 @@ Decision tree란, 나무가지치듯 2진분류를 사용하여 데이터를 분
 <br>
 
 #### 의사결정 나무 결과 해석
+
+<br>
 
 - 남자는 6.5세 기준으로 생존사망 분류가 뚜렸하게 됐다. 
 - 여자는 Pclass 3과 1,2로 크게 분류가 되었다. 
@@ -312,14 +331,23 @@ prp(rpart_m, type=4, extra=2, digits=3)
 rpart_p <- predict(rpart_m, newdata=test_set, type = "class")
 ```
 
+<br>
 
 ### 2) Random Forest
+
+<br>
+
 
 랜덤 포레스트는 의사결정나무 모델의 상위버전이라고 할 수 있다. 여러 개의 의사결정 나무 모델을 사용하여 정확도를 높히는 앙상블 기법 중 하나이다.기술 블로그는 다음과 같다. <br>
 
 - Random Forest 기술 블로그: [Random Forest](https://liujingjun.tistory.com/27)
 
+<br>
+
 #### RandomForest 결과 해석
+
+<br>
+
 
 - 변수의 중요도를 확인해보니 Sex, Pclass, Age 순으로 된 도표를 확인할 수 있었다. 
 
@@ -340,7 +368,12 @@ varImpPlot(rf_info)
 rf_p <- predict(rf_m, newdata = test_set, type = "class")
 ```
 
+<br><br>
+
 ## 5. 제출데이터 및 구성결과 확인
+
+<br>
+
 이제 생성한 모델을 제출양식에 맞춰 dataframe으로 제출해보자. 제출양식은 처음에 다운받은 gender_submision.csv 에서 확인할 수 있다. 그리고 제출한 결과 스코어는 다음과 같다. 
 
 
@@ -361,7 +394,11 @@ Titanic_rf <- data.frame(PassengerID = test_set$PassengerId, Survived = rf_p)
 write.csv(Titanic_rf, file = "Titanic_rf_submit.csv", row.names = FALSE)
 ```
 
+<br><br>
+
 ## 6. 총평 
+
+<br>
 
 이렇게 캐글에서 타이타닉 생존자 예측을 해 보았다. Pclass, Age, Sex 세 가지만 가지고 모델을 돌렸으며, 신뢰도는 70%정도가 나왔다. 조금 더 높힐 수 있는 방법으로는 testset의 NA 값을 잘 처리하든가, Data 선정을 조금 더 잘 하는 방법이 있겠다.  
 
