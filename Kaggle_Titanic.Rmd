@@ -16,6 +16,20 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+![](/home/ryukyungjun/Titanic/titanic_img.JPG)
+
+## 0. 패키지 불러오기 & 데이터 가져오기
+```{r}
+library(tidyverse) # Tidyverse 패키지
+library(ggplot2) # 시각화 패키지 
+library(plotly) # 반응형 시각화 패키지 
+library(rpart) # 의사결정 나무
+library(rpart.plot) # 의사결정 나무 시각화 
+library(caret) # 데이터 처리 패키지
+library(e1071) # 혼동행렬 패키지 
+library(randomForest) # Random Forest 패키지
+```
+
 ```{r}
 training_set <-read.csv("train.csv")
 test_set <- read.csv("test.csv")
@@ -23,13 +37,21 @@ test_set <- read.csv("test.csv")
 
 ## 1. 타이타닉 생존예측을 하기위한 도메인 지식
 
+<br>
+
 타이타닉 생존예측을 하기위해 최소한의 도메인 지식을 사용해보자. 타이타닉이 침몰한 날은 1912년. 그리고 당시에는 레이디 퍼스트라는 개념이 전반적으로 있었으며, 그러한 이유로 가라앉을 당시에 승무원들은 어린아이와 여자부터 먼저 챙겼다고 한다. 또한, 부자, 일반인, 가난한 사람 등 여러 부류의 사람이 있었으며, 이는 각각 1,2,3 등급의 객실에 탑승했었던 것으로 보인다. <br> 
  이러한 도메인 지식은 간단한 인터넷 서칭과 영화 타이타닉에서 볼 수 있었고, 가난한 우리의 이민자인 레오나로드 디카프리오는 3등급 손님이었으며, 역시 영화해서 보면 죽었음을 알 수 있다. 
  
 
+<br> <br>
+
 ## 2. 탐색적 데이터 분석 (EDA)
 
-### 데이터 구조 파악 
+<br>
+
+### 1) 데이터 구조 파악 
+
+<br>
 
 데이터의 구조를 파악해보자. 데이터의 구조는 다음과 같다. 
 
@@ -65,9 +87,33 @@ training_set$Cabin <- as.character(training_set$Cabin)
 str(training_set)
 ```
 
-이로써 원하는대로 자료형이 바뀐 것을 확인할 수 있었다. 
+이로써 원하는대로 자료형이 바뀐 것을 확인할 수 있었다. 이와 같이 test set 도 자료형을 바꿔주자. 
 
-### 데이터 요약정보 파악
+```{r}
+test_set$Pclass <- as.factor(test_set$Pclass)
+test_set$Name <- as.character(test_set$Name)
+test_set$Ticket <- as.character(test_set$Ticket)
+test_set$Cabin <- as.character(test_set$Cabin)
+
+str(test_set)
+
+test_set$Age[is.na(test_set$Age)] <- mean(test_set$Age, na.rm = T)
+
+
+sapply(test_set, function(x){
+  sum(is.na(x))
+})
+
+```
+
+
+
+
+<br>
+
+### 2) 데이터 요약정보 파악
+
+<br>
 
 데이터 요약 정보를 파악한 결과 다음과 같다.
 
@@ -81,7 +127,11 @@ summary(training_set)
 - 함께 탑승한 형제 또는 배우자의 수는 최대 8명 그리고 평균적으로 0.5명인 것으로 보인다.
 - 함께 탑승한 부모 또는 자녀의 수는 최대 6명이고 평균이 0.38명으로 보인다.
 
-### 결측치 파악
+<br>
+
+### 3) 결측치 파악
+
+<br>
 
 결측치를 파악해보자. 
 
@@ -97,4 +147,231 @@ sapply(training_set, function(x){
 })
 ```
 
-이로써 정확히 Age에만 결측치가 있는 것을 확인할 수 있다. 
+이로써 정확히 Age에만 결측치가 있는 것을 확인할 수 있다. 나이는 결측치를 처리하는데 있어서 여러가지 방법이 있는데 그 중 대표적인 것들이 NA 제거, 평균값으로의 대치, 행,열 제거가 있겠다. 나이에 대해서는 평균값으로 대치할 경우 생존여부에 영향을 끼칠 수 있으므로 이 행을 제거하는 방법을 사용해보자. 
+
+```{r}
+training_set <- na.omit(training_set)
+sum(is.na(training_set))
+```
+
+결측치가 제거되었음을 확인할 수 있다. 
+
+### 4) 나이 데이터 전처리
+
+나이 데이터를 factor 형식으로 10살 단위로 끊어 정제해보자. 60살이 넘으면 over60 이라는 펙터로 구분을 지어놨다. 그리고 시각화를 해서 보면, 어느정도 정규성을 띄는 것을 볼 수 있다. 
+
+```{r fig.height=8, fig.width = 14}
+training_set <- training_set %>% 
+  mutate(Ages = case_when(
+    Age < 10 ~ "Under 10",
+    Age < 20 ~ "10 ~ 20",
+    Age < 30 ~ "20 ~ 30",
+    Age < 40 ~ "30 ~ 40",
+    Age < 50 ~ "40 ~ 50",
+    Age < 60 ~ "50 ~ 60",
+    TRUE ~ "over 60"
+  )) 
+
+training_set$Ages <- 
+  factor(training_set$Ages,
+         levels = c("Under 10", "10 ~ 20", "20 ~ 30", "30 ~ 40", "40 ~ 50", "50 ~ 60", "over 60"))
+
+ggplot(training_set, aes(x = Ages)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(size=20)) +
+  theme(axis.text.y = element_text(size=20))
+```
+
+
+<br><br>
+
+## 3. 데이터 시각화
+
+타이타닉의 데이터를 시각화를 통해 파악해보자. 앞서 도메인 지식을 통해 어느정도는 남자와 여자가, 또는 객실의 등급에 따라 또는 나이에 따라 생존유무가 달라지는 것을 확인할 수 있었지만, 시각화를 통해 조금 더 직관적으로 알아보자. 
+
+<br>
+
+### 1) 성별에 따른 생존여부
+
+성별에 따른 생존여부를 시각화해보자. 왼쪽 막대 그래프가 사망자의 남녀분포이고, 오른쪽의 막대 그래프가 생존자의 막대 그래프이다. 그림만 봐도 알 수 있듯이, 사망자 중에서는 남자가 월등히 많은 것을 볼 수 있었다. 
+
+```{r}
+ggplot_data <- ggplot(training_set, aes(x = Survived, fill = Sex)) +
+  geom_bar() +
+  ggtitle("성별에 따른 생존 여부") +
+  theme_bw()
+
+ggplotly(ggplot_data, height = 500, width = 800)
+```
+
+<br>
+
+### 2) Pclass에 따른 생존여부
+
+Pclass에 따른 생존여부에서 사망자의 수는 Pclass등급에 따라 어느정도 차이를 보이고 있으나, 왼쪽 생존자 막대 그래프에서는 등급에 따른 큰 차이를 보이지 않고 있다. 
+
+```{r}
+ggplot_data <- ggplot(training_set, aes(x = Survived, fill = Pclass)) +
+  geom_bar() +
+  ggtitle(" Pclass에 따른 생존 여부 ") +
+  theme_bw()
+
+ggplotly(ggplot_data, height = 500, width = 800)
+```
+
+<br>
+### 3) 나이에 따른 생존여부 
+
+<br>
+
+나이에 따른 생존여부를 확인해보고자 시각화를 한 자료에 근거하면, Under10 과 over60에서 비교적 적은 사망자 수를 확인할 수 있는 반면에, 20대 ~ 50대 연령의 사망자가 많은 것으로 보아, 어린아이들과 노인들에 대한 선조치가 이루어졌을 것이라는 사실을 알 수 있다. 
+
+
+```{r}
+ggplot_data <- training_set %>% 
+  ggplot(aes(x = Survived, fill = Ages)) +
+  geom_bar() +
+  ggtitle(" 나이에 따른 생존 여부 ") +
+  theme_bw() 
+
+ggplotly(ggplot_data, height = 500, width = 800)
+```
+
+
+### 4) SibSp에 따른 생존여부
+
+<br>
+
+혼자 탑승한 승객의 사망 수가 가장 높게 나타났으나, 단순하게 1인 승객의 사망률이 높게 나타난 것일 수 있으므로 유의미한 해석은 되지 못할 것 같다.
+
+```{r}
+ggplot_data <- training_set %>% 
+  ggplot(aes( x = Survived, fill = factor(SibSp))) +
+  geom_bar() +
+  ggtitle( "같이 탑승한 배우자 또는 형제에 따른 생존여부") +
+  theme_bw()
+
+ggplotly(ggplot_data, height = 500, width = 800)
+```
+
+
+
+### 5) Parch 에 따른 생존여부 
+
+<br>
+
+함께 탑승한 부모 또는 자녀의 수에 따른 생존여부를 시각화해보았다. 예상했듯이 큰 의미는 없다. 
+
+```{r}
+ggplot_data <- training_set %>% 
+  ggplot(aes( x = Survived, fill = factor(Parch))) +
+  geom_bar() +
+  ggtitle( "함께 탑승한 부모 또는 자녀의 수에 따른 생존여부") +
+  theme_bw()
+
+
+ggplotly(ggplot_data, height = 500, width = 800)
+```
+
+<br><br>
+ 
+## 4. 모델생성
+
+데이터에 대한 파악, 자료형 변환을 마쳤고, 시각화까지 모두 해서 확인해보았다. 이제 트레이닝 셋으로 모델을 만들어서 테스트 셋을 예측해보자. 종속변수는 Survived와 독립변수는 Sex와 Pclass, age로 하겠다. 그 전에 Survived 의 자료형을 factor로 바꿔주자. 
+
+```{r}
+training_set$Survived <- as.factor(training_set$Survived)
+str(training_set)
+```
+
+### 1) Decision tree
+
+Decision tree란, 나무가지치듯 2진분류를 사용하여 데이터를 분류하는 기법이다. 자세한 설명은 다음 기술 블로그를 참조하자. <br>
+
+- Decision Tree 기술 블로그: [의사결정 나무](https://liujingjun.tistory.com/19)
+
+<br>
+
+#### 의사결정 나무 결과 해석
+
+- 남자는 6.5세 기준으로 생존사망 분류가 뚜렸하게 됐다. 
+- 여자는 Pclass 3과 1,2로 크게 분류가 되었다. 
+- 또 Pclass 3의 여자는 5.5, 12, 38.5살을 기준으로 크게 분류가 되었다. 
+
+
+
+
+```{r fig.height=8, fig.width=14}
+# 의사결정나무 모델 사용
+rpart_m <- rpart(Survived ~ Pclass + Age + Sex, data = training_set)
+
+# 의사결정나무 시각화
+prp(rpart_m, type=4, extra=2, digits=3)
+
+# test set 확인
+rpart_p <- predict(rpart_m, newdata=test_set, type = "class")
+```
+
+
+### 2) Random Forest
+
+랜덤 포레스트는 의사결정나무 모델의 상위버전이라고 할 수 있다. 여러 개의 의사결정 나무 모델을 사용하여 정확도를 높히는 앙상블 기법 중 하나이다.기술 블로그는 다음과 같다. <br>
+
+- Random Forest 기술 블로그: [Random Forest](https://liujingjun.tistory.com/27)
+
+#### RandomForest 결과 해석
+
+- 변수의 중요도를 확인해보니 Sex, Pclass, Age 순으로 된 도표를 확인할 수 있었다. 
+
+```{r}
+# RandomForest 모델 생성
+rf_m <- randomForest(Survived ~ Pclass + Age + Sex, data = training_set)
+
+# importance
+rf_info <- randomForest(Survived ~ Sex + Age + Pclass , data = training_set, importance = T)
+
+# 데이터의 중요도 확인 
+importance(rf_info)
+
+# 데이터의 중요도 시각화
+varImpPlot(rf_info)
+
+# test 결과 확인
+rf_p <- predict(rf_m, newdata = test_set, type = "class")
+```
+
+## 5. 제출데이터 및 구성결과 확인
+이제 생성한 모델을 제출양식에 맞춰 dataframe으로 제출해보자. 제출양식은 처음에 다운받은 gender_submision.csv 에서 확인할 수 있다. 그리고 제출한 결과 스코어는 다음과 같다. 
+
+
+- Decision Tree Score: 0.73684
+- Random Forest Score: 0.75598
+
+두 모델 모두 73% 75% 로 비슷한 정확도를 보였지만, RandomForest의 결과가 조금 더 좋았다. 
+
+```{r}
+# 의사결정 나무 제출 데이터 
+Titanic_rpart <- data.frame(PassengerID = test_set$PassengerId, Survived = rpart_p)
+
+write.csv(Titanic_rpart, file = "Titanic_rpart_submit.csv", row.names = FALSE)
+
+# 랜덤포레스트 제출 데이터 
+Titanic_rf <- data.frame(PassengerID = test_set$PassengerId, Survived = rf_p)
+
+write.csv(Titanic_rf, file = "Titanic_rf_submit.csv", row.names = FALSE)
+```
+
+## 6. 총평 
+
+이렇게 캐글에서 타이타닉 생존자 예측을 해 보았다. Pclass, Age, Sex 세 가지만 가지고 모델을 돌렸으며, 신뢰도는 70%정도가 나왔다. 조금 더 높힐 수 있는 방법으로는 testset의 NA 값을 잘 처리하든가, Data 선정을 조금 더 잘 하는 방법이 있겠다.  
+
+
+
+
+
+
+
+
+
+
+
